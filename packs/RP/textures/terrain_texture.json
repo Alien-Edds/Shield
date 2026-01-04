@@ -1,0 +1,10 @@
+{
+    "num_mip_levels": 4,
+    "padding": 8,
+    "texture_name": "atlas.terrain",
+    "texture_data": {
+        "custom_shield:shield": {
+            "textures": "textures/custom_shield/items/shield"
+        }
+    }
+}

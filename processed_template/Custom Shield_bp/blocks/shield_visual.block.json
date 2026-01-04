@@ -1,0 +1,28 @@
+{
+    "format_version": "1.26.0",
+    "minecraft:block": {
+        "description": {
+            "identifier": "custom_shield:custom_shield"
+        },
+        "components": {
+            "minecraft:geometry": "geometry.custom_shield.shield_block",
+            "minecraft:material_instances": {
+                "*": {
+                    "texture": "custom_shield:shield",
+                    "render_method": "alpha_test",
+                    "emissive": true
+                }
+            },
+            "minecraft:placement_filter": {
+                "conditions": [{
+                    "allowed_faces": [
+                        "up"
+                    ],
+                    "block_filter": [
+                        "air"
+                    ]
+                }]
+            }
+        }
+    }
+}

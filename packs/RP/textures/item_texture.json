@@ -1,0 +1,8 @@
+{
+    "texture_name": "atlas.items",
+    "texture_data": {
+        "custom_shield:shield": {
+            "textures": "textures/custom_shield/items/shield_icon"
+        }
+    }
+}
