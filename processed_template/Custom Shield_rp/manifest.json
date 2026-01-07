@@ -8,8 +8,8 @@
         "name": "pack.name",
         "uuid": "9caebe2c-a76b-4daf-8067-870f63c175e8",
         "min_engine_version": [
-            1,
             26,
+            0,
             0
         ],
         "version": [

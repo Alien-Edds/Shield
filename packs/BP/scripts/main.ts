@@ -1,4 +1,4 @@
-import { ButtonState, ContainerSlot, EntityEquippableComponent, EntityHurtBeforeEvent, EquipmentSlot, GameMode, InputButton, ItemCooldownComponent, ItemDurabilityComponent, ItemEnchantableComponent, ItemStack, Player, system, world } from "@minecraft/server"
+import { ButtonState, ContainerSlot, EntityDamageCause, EntityEquippableComponent, EntityHurtBeforeEvent, EntityOnFireComponent, EquipmentSlot, GameMode, InputButton, ItemCooldownComponent, ItemDurabilityComponent, ItemEnchantableComponent, ItemStack, Player, system, world } from "@minecraft/server"
 
 
 
@@ -133,6 +133,10 @@ world.afterEvents.playerSwingStart.subscribe((data) => {
     if (delay !== undefined) runDelay(data.player, delay)
 })
 
+const cancelledEffects: {[id: string]: boolean} = {
+
+}
+
 world.beforeEvents.entityHurt.subscribe((data) => {
     if (!(data.hurtEntity instanceof Player)) return
     const player = data.hurtEntity
@@ -152,16 +156,26 @@ world.beforeEvents.entityHurt.subscribe((data) => {
     if (pTotal < vTotal) return
     let disableShield = false
     if (data.damageSource.damagingEntity) {
-        if (data.damageSource.damagingEntity.typeId === "minecraft:vindicator") {
+        const disableConditions = [
+            data.damageSource.damagingEntity.typeId === "minecraft:vindicator",
+            data.damageSource.damagingEntity.typeId === "minecraft:piglin_brute",
+            data.damageSource.damagingEntity.typeId === "minecraft:warden" && data.damageSource.cause === EntityDamageCause.entityAttack
+        ]
+        if (disableConditions.find((f) => f == true)) {
             disableShield = true
         } else {
             const equippable = data.damageSource.damagingEntity.getComponent(EntityEquippableComponent.componentId)
             if (equippable?.getEquipmentSlot(EquipmentSlot.Mainhand).getItem()?.hasTag("minecraft:is_axe")) disableShield = true
         }
     }
+    let hadFire = player.getComponent(EntityOnFireComponent.componentId) !== undefined
+    cancelledEffects[player.id] = true
+    const id = player.id
     system.run(() => {
+        delete cancelledEffects[id]
         const shield = getHeldShield(player)
         if (!shield) return
+        if (!hadFire && player.getComponent(EntityOnFireComponent.componentId)) player.extinguishFire()
         if (Shields[shield.item.typeId]) Shields[shield.item.typeId]({event: data, item: shield.item, source: player, slot: shield.slot})
         if (shield.item.hasComponent(ItemDurabilityComponent.componentId)) {
             let damage = data.damage
@@ -182,6 +196,11 @@ world.beforeEvents.entityHurt.subscribe((data) => {
             if (comp.disable_sound) player.dimension.playSound(comp.disable_sound, player.location)
         }
     })
+    data.cancel = true
+})
+
+world.beforeEvents.effectAdd.subscribe((data) => {
+    if (!cancelledEffects[data.entity.id]) return
     data.cancel = true
 })
 

@@ -1,4 +1,4 @@
-import { ButtonState, EntityEquippableComponent, EquipmentSlot, GameMode, InputButton, ItemCooldownComponent, ItemDurabilityComponent, ItemEnchantableComponent, Player, system, world } from "@minecraft/server";
+import { ButtonState, EntityDamageCause, EntityEquippableComponent, EntityOnFireComponent, EquipmentSlot, GameMode, InputButton, ItemCooldownComponent, ItemDurabilityComponent, ItemEnchantableComponent, Player, system, world } from "@minecraft/server";
 const Shields = {
   // "custom_shield:custom_shield": (data) => {
   //     world.sendMessage("this is a script")
@@ -105,6 +105,7 @@ world.afterEvents.playerSwingStart.subscribe((data) => {
   const delay = (_b = (_a = shield == null ? void 0 : shield.item.getComponent("custom_shield:shield")) == null ? void 0 : _a.customComponentParameters.params) == null ? void 0 : _b.delay;
   if (delay !== void 0) runDelay(data.player, delay);
 });
+const cancelledEffects = {};
 world.beforeEvents.entityHurt.subscribe((data) => {
   var _a, _b, _c, _d;
   if (!(data.hurtEntity instanceof Player)) return;
@@ -124,17 +125,27 @@ world.beforeEvents.entityHurt.subscribe((data) => {
   if (pTotal < vTotal) return;
   let disableShield = false;
   if (data.damageSource.damagingEntity) {
-    if (data.damageSource.damagingEntity.typeId === "minecraft:vindicator") {
+    const disableConditions = [
+      data.damageSource.damagingEntity.typeId === "minecraft:vindicator",
+      data.damageSource.damagingEntity.typeId === "minecraft:piglin_brute",
+      data.damageSource.damagingEntity.typeId === "minecraft:warden" && data.damageSource.cause === EntityDamageCause.entityAttack
+    ];
+    if (disableConditions.find((f) => f == true)) {
       disableShield = true;
     } else {
       const equippable = data.damageSource.damagingEntity.getComponent(EntityEquippableComponent.componentId);
       if ((_d = equippable == null ? void 0 : equippable.getEquipmentSlot(EquipmentSlot.Mainhand).getItem()) == null ? void 0 : _d.hasTag("minecraft:is_axe")) disableShield = true;
     }
   }
+  let hadFire = player.getComponent(EntityOnFireComponent.componentId) !== void 0;
+  cancelledEffects[player.id] = true;
+  const id = player.id;
   system.run(() => {
     var _a2, _b2, _c2, _d2;
+    delete cancelledEffects[id];
     const shield = getHeldShield(player);
     if (!shield) return;
+    if (!hadFire && player.getComponent(EntityOnFireComponent.componentId)) player.extinguishFire();
     if (Shields[shield.item.typeId]) Shields[shield.item.typeId]({ event: data, item: shield.item, source: player, slot: shield.slot });
     if (shield.item.hasComponent(ItemDurabilityComponent.componentId)) {
       let damage = data.damage;
@@ -158,6 +169,10 @@ world.beforeEvents.entityHurt.subscribe((data) => {
       if (comp.disable_sound) player.dimension.playSound(comp.disable_sound, player.location);
     }
   });
+  data.cancel = true;
+});
+world.beforeEvents.effectAdd.subscribe((data) => {
+  if (!cancelledEffects[data.entity.id]) return;
   data.cancel = true;
 });
 system.beforeEvents.startup.subscribe((data) => {
