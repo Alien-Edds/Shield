@@ -22,7 +22,7 @@
 		"profiles": {
 			"default": {
 				"export": {
-					"build": "preview",
+					"build": "standard",
 					"readOnly": false,
 					"target": "development"
 				},

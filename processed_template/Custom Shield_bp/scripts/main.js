@@ -109,7 +109,28 @@ const cancelledEffects = {};
 world.beforeEvents.entityHurt.subscribe((data) => {
   var _a, _b, _c, _d;
   if (!(data.hurtEntity instanceof Player)) return;
+  let preDamageValue = data.damage;
   const player = data.hurtEntity;
+  const equip = player.getComponent(EntityEquippableComponent.componentId);
+  if (equip) {
+    let totalProtection = 0;
+    let totalArmor = 0;
+    for (const equipSlot in EquipmentSlot) {
+      if (equipSlot.includes("hand")) continue;
+      const slot = equip.getEquipmentSlot(EquipmentSlot[equipSlot]);
+      const item = slot.getItem();
+      if (item) {
+        const ench = item.getComponent(ItemEnchantableComponent.componentId);
+        const prot = ench == null ? void 0 : ench.getEnchantment("protection");
+        const proj = ench == null ? void 0 : ench.getEnchantment("projectile_protection");
+        if (prot) totalProtection += prot.level;
+        if (proj && data.damageSource.cause === EntityDamageCause.projectile) totalProtection += proj.level;
+        if (ARMOR_VALUES[item.typeId]) totalArmor += ARMOR_VALUES[item.typeId];
+      }
+    }
+    if (totalArmor) preDamageValue = preDamageValue / (1 - totalArmor * 0.03875);
+    if (totalProtection) preDamageValue = preDamageValue / (1 - totalProtection * 0.03875);
+  }
   if (!shieldingPlayers[player.id] || delays[player.id] !== void 0 || usingItem[player.id]) return;
   const playerLoc = player.location;
   const viewDir = player.getViewDirection();
@@ -141,23 +162,24 @@ world.beforeEvents.entityHurt.subscribe((data) => {
   cancelledEffects[player.id] = true;
   const id = player.id;
   system.run(() => {
-    var _a2, _b2, _c2, _d2;
+    var _a2, _b2, _c2, _d2, _e;
     delete cancelledEffects[id];
     const shield = getHeldShield(player);
     if (!shield) return;
+    if (((_a2 = data.damageSource.damagingEntity) == null ? void 0 : _a2.typeId) === "minecraft:ravager" && data.damageSource.cause === EntityDamageCause.entityAttack) data.damageSource.damagingEntity.triggerEvent("minecraft:become_stunned");
     if (!hadFire && player.getComponent(EntityOnFireComponent.componentId)) player.extinguishFire();
     if (Shields[shield.item.typeId]) Shields[shield.item.typeId]({ event: data, item: shield.item, source: player, slot: shield.slot });
     if (shield.item.hasComponent(ItemDurabilityComponent.componentId)) {
-      let damage = data.damage;
+      let damage = preDamageValue;
       if (damage > Math.floor(damage)) damage = Math.floor(damage);
       damage += 1;
       shield.slot.setItem(reduceDurability(player, shield.item, damage));
     }
-    const comp = (_a2 = shield.item.getComponent("custom_shield:shield")) == null ? void 0 : _a2.customComponentParameters.params;
+    const comp = (_b2 = shield.item.getComponent("custom_shield:shield")) == null ? void 0 : _b2.customComponentParameters.params;
     if (comp.knockback && data.damageSource.damagingEntity && !data.damageSource.damagingProjectile) {
       const total = Math.abs(damageLocation.x - playerLoc.x) + Math.abs(damageLocation.z - playerLoc.z);
       try {
-        data.damageSource.damagingEntity.applyKnockback({ x: (damageLocation.x - playerLoc.x) / total * ((_b2 = comp.knockback.x) != null ? _b2 : 0), z: (damageLocation.z - playerLoc.z) / total * ((_c2 = comp.knockback.x) != null ? _c2 : 0) }, (_d2 = comp.knockback.y) != null ? _d2 : 0.1);
+        data.damageSource.damagingEntity.applyKnockback({ x: (damageLocation.x - playerLoc.x) / total * ((_c2 = comp.knockback.x) != null ? _c2 : 0), z: (damageLocation.z - playerLoc.z) / total * ((_d2 = comp.knockback.x) != null ? _d2 : 0) }, (_e = comp.knockback.y) != null ? _e : 0.1);
       } catch (e) {
       }
     }
@@ -221,6 +243,50 @@ world.afterEvents.itemStopUse.subscribe((data) => {
 world.afterEvents.itemReleaseUse.subscribe((data) => {
   delete usingItem[data.source.id];
 });
+const ARMOR_VALUES = {
+  /**
+   * HELMETS
+   */
+  "minecraft:leather_helmet": 1,
+  "minecraft:copper_helmet": 2,
+  "minecraft:golden_helmet": 2,
+  "minecraft:chainmail_helmet": 2,
+  "minecraft:iron_helmet": 2,
+  "minecraft:turtle_helmet": 2,
+  "minecraft:diamond_helmet": 3,
+  "minecraft:netherite_helmet": 3,
+  /**
+   * CHESTPLATES
+   */
+  "minecraft:leather_chestplate": 3,
+  "minecraft:copper_chestplate": 4,
+  "minecraft:golden_chestplate": 5,
+  "minecraft:chainmail_chestplate": 5,
+  "minecraft:iron_chestplate": 6,
+  "minecraft:diamond_chestplate": 8,
+  "minecraft:netherite_chestplate": 8,
+  /**
+   * LEGGINGS
+   */
+  "minecraft:leather_leggings": 2,
+  "minecraft:copper_leggings": 3,
+  "minecraft:golden_leggings": 3,
+  "minecraft:chainmail_leggings": 4,
+  "minecraft:iron_leggings": 5,
+  "minecraft:diamond_leggings": 6,
+  "minecraft:netherite_leggings": 6,
+  /**
+   * BOOTS
+   */
+  "minecraft:leather_boots": 1,
+  "minecraft:copper_boots": 1,
+  "minecraft:golden_boots": 1,
+  "minecraft:chainmail_boots": 1,
+  "minecraft:iron_boots": 2,
+  "minecraft:diamond_boots": 3,
+  "minecraft:netherite_boots": 3
+};
 export {
+  ARMOR_VALUES,
   reduceDurability
 };

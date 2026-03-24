@@ -5,7 +5,7 @@ import { ButtonState, ContainerSlot, EntityDamageCause, EntityEquippableComponen
 /**
  * OPTIONAL SCRIPTS TO RUN ON SHIELD BLOCK
  */
-const Shields: {[id: string]: (data: {item: ItemStack, slot: ContainerSlot, source: Player, event: EntityHurtBeforeEvent}) => void} = {
+const Shields: { [id: string]: (data: { item: ItemStack, slot: ContainerSlot, source: Player, event: EntityHurtBeforeEvent }) => void } = {
     // "custom_shield:custom_shield": (data) => {
     //     world.sendMessage("this is a script")
     // }
@@ -133,13 +133,34 @@ world.afterEvents.playerSwingStart.subscribe((data) => {
     if (delay !== undefined) runDelay(data.player, delay)
 })
 
-const cancelledEffects: {[id: string]: boolean} = {
+const cancelledEffects: { [id: string]: boolean } = {
 
 }
 
 world.beforeEvents.entityHurt.subscribe((data) => {
     if (!(data.hurtEntity instanceof Player)) return
+    let preDamageValue = data.damage
     const player = data.hurtEntity
+    const equip = player.getComponent(EntityEquippableComponent.componentId)
+    if (equip) {
+        let totalProtection = 0
+        let totalArmor = 0
+        for (const equipSlot in EquipmentSlot) {
+            if (equipSlot.includes("hand")) continue
+            const slot = equip.getEquipmentSlot(EquipmentSlot[equipSlot as EquipmentSlot])
+            const item = slot.getItem()
+            if (item) {
+                const ench = item.getComponent(ItemEnchantableComponent.componentId)
+                const prot = ench?.getEnchantment("protection")
+                const proj = ench?.getEnchantment("projectile_protection")
+                if (prot) totalProtection += prot.level
+                if (proj && data.damageSource.cause === EntityDamageCause.projectile) totalProtection += proj.level
+                if (ARMOR_VALUES[item.typeId]) totalArmor += ARMOR_VALUES[item.typeId]
+            }
+        }
+        if (totalArmor) preDamageValue = preDamageValue / (1 - (totalArmor * 0.03875))
+        if (totalProtection) preDamageValue = preDamageValue / (1 - (totalProtection * 0.03875))
+    }
     if (!shieldingPlayers[player.id] || delays[player.id] !== undefined || usingItem[player.id]) return
 
     const playerLoc = player.location
@@ -159,7 +180,7 @@ world.beforeEvents.entityHurt.subscribe((data) => {
         const disableConditions = [
             data.damageSource.damagingEntity.typeId === "minecraft:vindicator",
             data.damageSource.damagingEntity.typeId === "minecraft:piglin_brute",
-            data.damageSource.damagingEntity.typeId === "minecraft:warden" && data.damageSource.cause === EntityDamageCause.entityAttack
+            data.damageSource.damagingEntity.typeId === "minecraft:warden" && data.damageSource.cause === EntityDamageCause.entityAttack,
         ]
         if (disableConditions.find((f) => f == true)) {
             disableShield = true
@@ -175,10 +196,11 @@ world.beforeEvents.entityHurt.subscribe((data) => {
         delete cancelledEffects[id]
         const shield = getHeldShield(player)
         if (!shield) return
+        if (data.damageSource.damagingEntity?.typeId === "minecraft:ravager" && data.damageSource.cause === EntityDamageCause.entityAttack) data.damageSource.damagingEntity.triggerEvent("minecraft:become_stunned")
         if (!hadFire && player.getComponent(EntityOnFireComponent.componentId)) player.extinguishFire()
-        if (Shields[shield.item.typeId]) Shields[shield.item.typeId]({event: data, item: shield.item, source: player, slot: shield.slot})
+        if (Shields[shield.item.typeId]) Shields[shield.item.typeId]({ event: data, item: shield.item, source: player, slot: shield.slot })
         if (shield.item.hasComponent(ItemDurabilityComponent.componentId)) {
-            let damage = data.damage
+            let damage = preDamageValue
             if (damage > Math.floor(damage)) damage = Math.floor(damage);
             damage += 1
             shield.slot.setItem(reduceDurability(player, shield.item, damage))
@@ -256,3 +278,53 @@ world.afterEvents.itemStopUse.subscribe((data) => {
 world.afterEvents.itemReleaseUse.subscribe((data) => {
     delete usingItem[data.source.id]
 })
+
+
+
+
+
+
+
+export const ARMOR_VALUES: { [id: string]: number } = {
+    /**
+     * HELMETS
+     */
+    "minecraft:leather_helmet": 1,
+    "minecraft:copper_helmet": 2,
+    "minecraft:golden_helmet": 2,
+    "minecraft:chainmail_helmet": 2,
+    "minecraft:iron_helmet": 2,
+    "minecraft:turtle_helmet": 2,
+    "minecraft:diamond_helmet": 3,
+    "minecraft:netherite_helmet": 3,
+    /**
+     * CHESTPLATES
+     */
+    "minecraft:leather_chestplate": 3,
+    "minecraft:copper_chestplate": 4,
+    "minecraft:golden_chestplate": 5,
+    "minecraft:chainmail_chestplate": 5,
+    "minecraft:iron_chestplate": 6,
+    "minecraft:diamond_chestplate": 8,
+    "minecraft:netherite_chestplate": 8,
+    /**
+     * LEGGINGS
+     */
+    "minecraft:leather_leggings": 2,
+    "minecraft:copper_leggings": 3,
+    "minecraft:golden_leggings": 3,
+    "minecraft:chainmail_leggings": 4,
+    "minecraft:iron_leggings": 5,
+    "minecraft:diamond_leggings": 6,
+    "minecraft:netherite_leggings": 6,
+    /**
+     * BOOTS
+     */
+    "minecraft:leather_boots": 1,
+    "minecraft:copper_boots": 1,
+    "minecraft:golden_boots": 1,
+    "minecraft:chainmail_boots": 1,
+    "minecraft:iron_boots": 2,
+    "minecraft:diamond_boots": 3,
+    "minecraft:netherite_boots": 3
+}
