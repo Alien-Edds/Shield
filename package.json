@@ -1,5 +1,8 @@
 {
   "dependencies": {
     "@minecraft/server": "^2.6.0-beta.1.26.0-preview.26"
+  },
+  "devDependencies": {
+    "esbuild": "^0.28.1"
   }
 }
